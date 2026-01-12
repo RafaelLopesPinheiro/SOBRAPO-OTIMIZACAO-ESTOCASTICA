@@ -1,20 +1,6 @@
 """
-Problem [01] - Chapter 6: Sampling Methods
-Book:   III Bienal da Sociedade Brasileira de Matemática
-
-Problem Statement (Reinterpreted):
-Consider a two-stage stochastic program with:   
-- X = [0,5], x is scalar
-- c = -0.75
-- q = [-1, 3, 1, 1]ᵀ (4 second-stage variables)
-- W = [-1 1 -1  1]  (2×4 matrix, 2 constraints)
-      [ 1 1  1 -1]
-- T = [10]  (2×1 vector to match 2 constraints)
-      [5 ]
-- h(ω) = [-1, ω₂]ᵀ where ω₂ = 1 + ω₁
-- ω₁ ~ Uniform[-1, 0]
-
-Recourse problem:  min qᵀy s.t.Wy = h - Tx, y ≥ 0
+Problem [01] - Chapter 6:Sampling Methods
+Book:III Bienal da Sociedade Brasileira de Matemática
 """
 
 using JuMP
@@ -26,18 +12,16 @@ using Printf
 using Plots
 
 println("="^80)
-println("Problem [01] - Chapter 6: Stochastic Decomposition")
+println("Problem [01] - Chapter 6:Stochastic Decomposition")
 println("="^80)
 println()
 
-# Set random seed for reproducibility
 Random.seed!(1234)
 
 # PROBLEM DATA
 println("PROBLEM DATA")
 println("-"^80)
 
-# First stage
 c = -0.75
 X_lower = 0.0
 X_upper = 5.0
@@ -47,14 +31,11 @@ println("  c = $c")
 println("  X = [$X_lower, $X_upper]")
 println()
 
-# Second stage
 q = [-1.0, 3.0, 1.0, 1.0]
-n_y = 4  # dimension of y
+n_y = 4
 
-# T should be 2×1 to match 2 constraints
-T = [10.0, 5.0]  # 2-element vector
+T = [10.0, 5.0]
 
-# W is 2×4 as given in problem
 W = [-1.0  1.0  -1.0   1.0;
       1.0  1.0   1.0  -1.0]
 
@@ -65,7 +46,6 @@ println("  W = ")
 display(W)
 println()
 
-# Random parameters
 println("Uncertain parameters:")
 println("  ω₁ ~ Uniform[-1, 0]")
 println("  ω₂ = 1 + ω₁")
@@ -74,13 +54,11 @@ println()
 
 dist_omega1 = Uniform(-1.0, 0.0)
 
-# Function to generate h(ω) given ω₁
 function generate_h(ω1)
     ω2 = 1.0 + ω1
-    return [-1.0, ω2]  # 2-element vector
+    return [-1.0, ω2]
 end
 
-# Function to solve second-stage problem Q(x,ω)
 function solve_second_stage(x_val, ω1; return_dual=false)
     h = generate_h(ω1)
     
@@ -90,9 +68,7 @@ function solve_second_stage(x_val, ω1; return_dual=false)
     @variable(model, y[1:n_y] >= 0)
     @objective(model, Min, sum(q[i] * y[i] for i in 1:n_y))
     
-    # Constraint:   Wy = h - Tx
-    # x_val is scalar, T is 2-element vector
-    Tx = T * x_val  # This gives a 2-element vector
+    Tx = T * x_val
     rhs = h - Tx
     
     @constraint(model, recourse[i=1:2], 
@@ -111,12 +87,11 @@ function solve_second_stage(x_val, ω1; return_dual=false)
             return objective_value(model)
         end
     else
-        # Print debug info for infeasibility
         if return_dual
             println("    Infeasible at x=$x_val, ω1=$ω1")
             println("    rhs = $rhs")
         end
-        return nothing  # Infeasible
+        return nothing
     end
 end
 
@@ -126,20 +101,18 @@ println("STOCHASTIC DECOMPOSITION ALGORITHM")
 println("="^80)
 println()
 
-# Algorithm parameters
-max_iterations = 3  # As requested:   3 steps
-M = 10  # Number of samples per iteration for averaging
+max_iterations = 3
+M = 10
 
-# Initialize
-global k = 0
+k = 0
 x_history = []
-cuts = []  # Store cuts (intercept, slope)
+cuts = []
 theta_history = []
 obj_history = []
 
 println("Algorithm parameters:")
-println("  Maximum iterations: $max_iterations")
-println("  Samples per iteration (M): $M")
+println("  Maximum iterations:$max_iterations")
+println("  Samples per iteration (M):$M")
 println()
 
 println("ITERATION LOG")
@@ -147,28 +120,24 @@ println("-"^80)
 println(@sprintf("%4s  %10s  %10s  %10s", "Iter", "x", "θ", "Objective"))
 println("-"^80)
 
-# Main loop
 while k < max_iterations
-    global k
+    global k  # FIX: Explicitly declare as global
     k += 1
     
-    # STEP 1: Solve master problem
+    # Solve master problem
     master = Model(HiGHS.Optimizer)
     set_silent(master)
     
     @variable(master, X_lower <= x <= X_upper)
-    @variable(master, θ)  # Approximation of E[Q(x,ω)]
+    @variable(master, θ)
     
     @objective(master, Min, c * x + θ)
     
-    # Add all previous cuts
     for cut in cuts
         @constraint(master, θ >= cut.intercept + cut.slope * x)
     end
     
-    # If first iteration, initialize with a simple cut
     if k == 1
-        # Add a lower bound cut:   θ >= -100 (loose bound)
         @constraint(master, θ >= -100)
     end
     
@@ -184,26 +153,20 @@ while k < max_iterations
     
     println(@sprintf("%4d  %10.6f  %10.6f  %10.6f", k, x_k, θ_k, obj_k))
     
-    # STEP 2: Generate M samples and solve subproblems
+    # Generate samples
     sample_values = Float64[]
     intercepts = Float64[]
     slopes = Float64[]
     
     for j in 1:M
-        # Sample ω₁
         ω1_sample = rand(dist_omega1)
         
-        # Solve second-stage problem at x_k
-        result = solve_second_stage(x_k, ω1_sample, return_dual=true)
+        local result = solve_second_stage(x_k, ω1_sample, return_dual=true)  # FIX:Added 'local'
         
         if result !== nothing
             push!(sample_values, result.value)
             
-            # Get dual solution π
             π = result.dual
-            
-            # Generate cut:   θ ≥ Q(x_k, ω^j) + πᵀT(x - x_k)
-            # slope = πᵀT, intercept = Q - (πᵀT)x_k
             slope_j = dot(π, T)
             intercept_j = result.value - slope_j * x_k
             
@@ -212,28 +175,23 @@ while k < max_iterations
         end
     end
     
-    # Check if we have valid cuts
     if isempty(intercepts)
-        println("  WARNING: No valid samples obtained at x=$x_k")
+        println("  WARNING:No valid samples obtained at x=$x_k")
         println("  Trying to diagnose infeasibility...")
-        # Test with a specific sample
-        test_result = solve_second_stage(x_k, -0.5, return_dual=true)
+        local test_result = solve_second_stage(x_k, -0.5, return_dual=true)  # FIX:Added 'local'
         continue
     end
     
-    # STEP 3: Average the cuts (SAA approach)
     avg_intercept = mean(intercepts)
     avg_slope = mean(slopes)
     
-    # Add the averaged cut
     push!(cuts, (intercept=avg_intercept, slope=avg_slope))
     
-    # Compute sample average approximation
     avg_Q = mean(sample_values)
     
-    println("  Sample average Q(x_k): $(round(avg_Q, digits=6))")
-    println("  Cut added: θ ≥ $(round(avg_intercept, digits=4)) + $(round(avg_slope, digits=4)) * x")
-    println("  Valid samples: $(length(sample_values))/$M")
+    # println("  Sample average Q(x_k):$(round(avg_Q, digits=6))")
+    # println("  Cut added:θ ≥ $(round(avg_intercept, digits=4)) + $(round(avg_slope, digits=4)) * x")
+    println("  Valid samples:$(length(sample_values))/$M")
     println()
 end
 
@@ -252,11 +210,11 @@ if ! isempty(x_history)
     obj_final = obj_history[end]
     
     println(@sprintf("Final x: %.6f", x_final))
-    println(@sprintf("Final θ: %.6f", θ_final))
-    println(@sprintf("Final objective:  %.6f", obj_final))
+    println(@sprintf("Final θ:%.6f", θ_final))
+    println(@sprintf("Final objective:%.6f", obj_final))
     println()
     
-    # VERIFICATION WITH MONTE CARLO
+    # VERIFICATION
     println("="^80)
     println("VERIFICATION WITH MONTE CARLO (N=10000 samples)")
     println("="^80)
@@ -264,11 +222,10 @@ if ! isempty(x_history)
     
     N_verify = 10000
     
-    # Evaluate objective at final x
     Q_samples_final = Float64[]
     for i in 1:N_verify
         ω1 = rand(dist_omega1)
-        Q_val = solve_second_stage(x_final, ω1)
+        local Q_val = solve_second_stage(x_final, ω1)  # FIX:Added 'local'
         if Q_val !== nothing
             push!(Q_samples_final, Q_val)
         end
@@ -279,17 +236,16 @@ if ! isempty(x_history)
         total_cost_final = c * x_final + E_Q_final
         
         println(@sprintf("At x = %.6f:", x_final))
-        println(@sprintf("  First-stage cost: c*x = %.6f", c * x_final))
-        println(@sprintf("  Expected second-stage cost: E[Q(x)] = %.6f", E_Q_final))
-        println(@sprintf("  Total expected cost:  %.6f", total_cost_final))
-        println(@sprintf("  Feasible samples: %d/%d", length(Q_samples_final), N_verify))
+        println(@sprintf("  First-stage cost:c*x = %.6f", c * x_final))
+        println(@sprintf("  Expected second-stage cost:E[Q(x)] = %.6f", E_Q_final))
+        println(@sprintf("  Total expected cost:%.6f", total_cost_final))
+        println(@sprintf("  Feasible samples:%d/%d", length(Q_samples_final), N_verify))
         println()
     else
-        println("WARNING: All samples infeasible at final solution!")
+        println("WARNING:All samples infeasible at final solution!")
         println()
     end
     
-    # Test a grid of x values to understand the function
     println("Evaluating objective function on grid:")
     println("-"^80)
     x_grid = 0.0:0.5:5.0
@@ -298,7 +254,7 @@ if ! isempty(x_history)
         Q_samples = Float64[]
         for i in 1:1000
             ω1 = rand(dist_omega1)
-            Q_val = solve_second_stage(x_test, ω1)
+            local Q_val = solve_second_stage(x_test, ω1)  # FIX:Added 'local'
             if Q_val !== nothing
                 push!(Q_samples, Q_val)
             end
@@ -306,10 +262,10 @@ if ! isempty(x_history)
         if !isempty(Q_samples)
             E_Q = mean(Q_samples)
             total = c * x_test + E_Q
-            println(@sprintf("  x = %.1f: E[Q(x)] = %8.4f, Total = %8.4f (%d/1000 feasible)", 
+            println(@sprintf("  x = %.1f:E[Q(x)] = %8.4f, Total = %8.4f (%d/1000 feasible)", 
                              x_test, E_Q, total, length(Q_samples)))
         else
-            println(@sprintf("  x = %.1f: All samples infeasible", x_test))
+            println(@sprintf("  x = %.1f:All samples infeasible", x_test))
         end
     end
     println()
@@ -321,7 +277,7 @@ println("="^80)
 println()
 println("The recourse problem is:")
 println("  min  -y₁ + 3y₂ + y₃ + y₄")
-println("  s.t.-y₁ + y₂ - y₃ + y₄ = -1 - 10x")
+println("  s.t. -y₁ + y₂ - y₃ + y₄ = -1 - 10x")
 println("       y₁ + y₂ + y₃ - y₄ = ω₂ - 5x")
 println("       y₁, y₂, y₃, y₄ ≥ 0")
 println()

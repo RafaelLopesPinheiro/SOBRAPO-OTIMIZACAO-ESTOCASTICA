@@ -29,18 +29,18 @@ function formulate_problem()
     println("="^80)
     println()
     println("DECISION VARIABLES:")
-    println("  a[s,t] >= 0: Area in stage s at time t")
-    println("  h[s,t] >= 0: Harvested area from stage s at time t")
+    println("  a[s,t] >= 0:Area in stage s at time t")
+    println("  h[s,t] >= 0:Harvested area from stage s at time t")
     println()
     println("OBJECTIVE:")
     println("  maximize sum(b^t * sqrt(sum(f[s]*h[s,t])) for t=0 to T)")
     println()
     println("CONSTRAINTS:")
-    println("  1. sum(a[s,t]) = A  (area conservation)")
-    println("  2. a[1,t+1] = sum(h[s,t])  (replanting)")
-    println("  3. a[s+1,t+1] = a[s,t] - h[s,t], s<n  (aging)")
-    println("  4. h[n,t] = a[n,t]  (mandatory mature harvest)")
-    println("  5. 0 <= h[s,t] <= a[s,t]  (cannot overharvest)")
+    println("  1.sum(a[s,t]) = A  (area conservation)")
+    println("  2.a[1,t+1] = sum(h[s,t])  (replanting)")
+    println("  3.a[s+1,t+1] = a[s,t] - h[s,t], s<n  (aging)")
+    println("  4.h[n,t] = a[n,t]  (mandatory mature harvest)")
+    println("  5.0 <= h[s,t] <= a[s,t]  (cannot overharvest)")
     println("="^80)
     println()
 end
@@ -54,7 +54,7 @@ function solve_forest_problem(model::ForestModel; verbose=true)
     
     a0 = fill(A/n, n)
     
-    opt = Model(Ipopt. Optimizer)
+    opt = Model(Ipopt.Optimizer)
     set_optimizer_attribute(opt, "print_level", verbose ?  5 : 0)
     set_optimizer_attribute(opt, "max_iter", 500)
     set_optimizer_attribute(opt, "tol", 1e-7)
@@ -89,11 +89,11 @@ function solve_forest_problem(model::ForestModel; verbose=true)
         println("\n" * "="^80)
         println("RESULTS - SINGLE SPECIES")
         println("="^80)
-        println("Status:  $status")
+        println("Status: $status")
         
-        if status in [: LOCALLY_SOLVED, :OPTIMAL]
+        if status in [:LOCALLY_SOLVED, :OPTIMAL]
             obj = JuMP.objective_value(opt)
-            println("Objective:  ", round(obj, digits=4))
+            println("Objective: ", round(obj, digits=4))
             println()
             
             for t in [0, 1, 2, T-1, T]
@@ -102,14 +102,14 @@ function solve_forest_problem(model::ForestModel; verbose=true)
                 harvests = [JuMP.value(h[s,t]) for s in 1:n]
                 biomass = sum(f[s]*harvests[s] for s in 1:n)
                 
-                println("  Areas:     ", round.(areas, digits=4))
-                println("  Harvest:   ", round.(harvests, digits=4))
-                println("  Biomass:  ", round(biomass, digits=4))
-                println("  Utility:   ", round(sqrt(biomass+1e-10), digits=4))
+                println("  Areas:    ", round.(areas, digits=4))
+                println("  Harvest:  ", round.(harvests, digits=4))
+                println("  Biomass: ", round(biomass, digits=4))
+                println("  Utility:  ", round(sqrt(biomass+1e-10), digits=4))
                 println()
             end
         else
-            println("WARNING:  Solver did not converge!")
+            println("WARNING: Solver did not converge!")
         end
         println("="^80)
     end
@@ -163,15 +163,15 @@ function solve_multispecies(model::MultiSpeciesModel; verbose=true)
         println("\n" * "="^80)
         println("RESULTS - MULTI-SPECIES")
         println("="^80)
-        println("Status: ", JuMP.termination_status(opt))
+        println("Status:", JuMP.termination_status(opt))
         
-        if JuMP.termination_status(opt) in [:LOCALLY_SOLVED, : OPTIMAL]
-            println("Objective: ", round(JuMP.objective_value(opt), digits=4))
+        if JuMP.termination_status(opt) in [:LOCALLY_SOLVED, :OPTIMAL]
+            println("Objective:", round(JuMP.objective_value(opt), digits=4))
             println()
             
             println("Biomass coefficients:")
             for k in 1:K
-                println("  Species $k:  ", f[k,: ])
+                println("  Species $k: ", f[k,:])
             end
             println()
             
@@ -180,11 +180,11 @@ function solve_multispecies(model::MultiSpeciesModel; verbose=true)
                 for k in 1:K
                     areas = [JuMP.value(a[k,s,t]) for s in 1:n]
                     harvests = [JuMP.value(h[k,s,t]) for s in 1:n]
-                    println("  Species $k: A=", round.(areas,digits=4), 
+                    println("  Species $k:A=", round.(areas,digits=4), 
                             " H=", round.(harvests,digits=4))
                 end
                 biomass = sum(f[k,s]*JuMP.value(h[k,s,t]) for k in 1:K, s in 1:n)
-                println("  Total biomass: ", round(biomass, digits=4))
+                println("  Total biomass:", round(biomass, digits=4))
                 println()
             end
         end
@@ -200,20 +200,20 @@ function main()
     println("="^80)
     println()
     
-    println("PART (a): MATHEMATICAL FORMULATION\n")
+    println("PART (a):MATHEMATICAL FORMULATION\n")
     formulate_problem()
     
-    println("PART (b): SINGLE SPECIES\n")
+    println("PART (b):SINGLE SPECIES\n")
     model1 = ForestModel(
         4,
-        [1. 0, 2.5, 4.0, 5.5],
+        [1.0, 2.5, 4.0, 5.5],
         0.95,
         1.0,
         10
     )
     solve_forest_problem(model1, verbose=true)
     
-    println("\nPART (c): MULTI-SPECIES (K=3)\n")
+    println("\nPART (c):MULTI-SPECIES (K=3)\n")
     model2 = MultiSpeciesModel(
         3,
         4,
